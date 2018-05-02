@@ -29,7 +29,8 @@ from glob import glob
 
 def loadDataset(dataset):
     """
-    This function load all images from a dataset and return a list of Numpy images.    """
+    This function load all images from a dataset and return a list of Numpy images.
+    """
     # List of images.
     images = []
 
@@ -41,6 +42,9 @@ def loadDataset(dataset):
         # Add the current image on the list.
         if image is not None:    
             images.append(image)
+        else:
+            print("Could not read file: {}".format(filename))
+            sys.exit()
 
     # Return the images list.
     return images
@@ -60,18 +64,43 @@ def sampleNegativeImages(images, negativeSample, size=(64, 64), N=200):
     # Read all images from the negative list.
     for image in images:
 
-        #<!--------------------------------------------------------------------------->
-        #<!--                            YOUR CODE HERE                             -->
-        #<!--------------------------------------------------------------------------->
+        for j in range(N):
+            # random.random produced random number in [0,1) range
+            y = int(random.random() * (len(image) - h))
+            x = int(random.random() * (len(image[0]) - w))
+            sample = image[y:y + h, x:x + w].copy()
+            negativeSample.append(sample)
 
-        # Remove this command.
-        break
+    return 
 
-        #<!--------------------------------------------------------------------------->
-        #<!--                                                                       -->
-        #<!--------------------------------------------------------------------------->
+def computeHOG(images, hogList, size=(64, 128)):
+    """
+    This function computes the Histogram of Oriented Gradients (HOG) of each
+    image from the dataset.
+    [Code from Exercise 10 solution. Could be used for a SVM with HOG Features]
+    """
+    # Creates the HOG descriptor and detector with default parameters.
+    hog = cv2.HOGDescriptor()
 
-    return negativeSample
+    # Read all images from the image list.
+    for image in images:
+    
+        # Image resolution
+        h, w = image.shape[:2]
+
+        # Calculate HOG
+        if w >= size[0] and h >= size[1]:
+
+            # Region of Interest
+            y = (h - size[1]) // 2
+            x = (w - size[0]) // 2
+            roi = image[y:y + size[1], x:x + size[0]].copy()
+
+            # Compute HOG
+            grayscale = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+            hogList.append(hog.compute(grayscale))
+
+    return hogList
 
 
 # Folder where the dataset images are saved.
@@ -91,7 +120,10 @@ labels = []
 positiveList = loadDataset(positiveFile)
 negativeList = loadDataset(negativeFile)
 
-# Get a sample of negative images.
+print(str(len(positiveList)))
+print(str(len(negativeList)))
+
+# Get a sample of negative images. (returns list in negativeSample)
 sampleNegativeImages(negativeList, negativeSample)
 
 #<!--------------------------------------------------------------------------->
