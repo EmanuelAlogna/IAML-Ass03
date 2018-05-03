@@ -21,7 +21,13 @@ __version__ = "$Revision: 2018042401 $"
 ########################################################################
 import cv2
 import numpy as np
+import pandas as pd
 import random
+import sklearn
+from sklearn import svm
+from sklearn.externals import joblib
+from sklearn.model_selection import train_test_split
+import sys
 
 from glob import glob
 
@@ -73,15 +79,63 @@ def sampleNegativeImages(images, negativeSample, size=(64, 64), N=200):
 
     return 
 
-def computeHOG(images, hogList, size=(64, 128)):
+def showImages(images):
+    """
+    Helper function to view images generated in the script without having to store
+    them on the disk. Use 'a' and 'd' key to go to the next image.
+    """
+    idx = 0
+
+    while True:
+
+        cv2.imshow("Image", images[idx])
+
+        if cv2.waitKey(15) & 0xFF == ord("d"):
+            if idx+1 >= len(images):
+                print("This is the last image in the set.")
+            else:
+                idx += 1
+                print("Viewing image no. {0} / {1}".format(idx+1, len(images)))
+
+        if cv2.waitKey(15) & 0xFF == ord("a"):
+            if idx-1 < 0:
+                print("This is the first image in the set.")
+            else:
+                idx -= 1
+                print("Viewing image no. {0} / {1}".format(idx+1, len(images)))
+
+        if cv2.waitKey(15) & 0xFF == ord("q"):
+            break
+
+# code from Exercise 10
+def getSVMDetector(svm):
+    """
+    This function calculates and returns the feature descriptor.
+    """
+    # Retrieves all the support vectors.
+    sv = svm.getSupportVectors()
+
+    # Retrieves the decision function.
+    rho, _, _ = svm.getDecisionFunction(0)
+
+    # Transpose the support vectors matrix.
+    sv = np.transpose(sv)
+
+    # Returns the feature descriptor.
+    return np.append(sv, [[-rho]], 0)
+
+def computeHOG(images, hogList, size=(64, 64)):
     """
     This function computes the Histogram of Oriented Gradients (HOG) of each
     image from the dataset.
     [Code from Exercise 10 solution. Could be used for a SVM with HOG Features]
     """
-    # Creates the HOG descriptor and detector with default parameters.
-    hog = cv2.HOGDescriptor()
-
+    # Creates a HOG descriptor with custom parameters
+    # (only changed the window size from the default settings to function
+    # correctly for our 64x64 input images)
+    # see (https://stackoverflow.com/questions/28390614/opencv-hogdescripter-python?utm_medium=organic&utm_source=google_rich_qa&utm_campaign=google_rich_qa)
+    hog = cv2.HOGDescriptor("./inputs/hog.xml")
+    
     # Read all images from the image list.
     for image in images:
     
@@ -100,38 +154,98 @@ def computeHOG(images, hogList, size=(64, 128)):
             grayscale = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
             hogList.append(hog.compute(grayscale))
 
-    return hogList
+    return 
+
+def main():
+
+    # Folder where the dataset images are saved.
+    folder = "./inputs"
+
+    # Dataset filenames.
+    positiveFile = glob("%s/cars/*.png" % folder)
+    negativeFile = glob("%s/non-cars/*.png" % folder)
+
+    # Vectors used to train the dataset.
+    positiveList = []
+    negativeList = []
+    negativeSample = []
+    labels = []
+
+    # As 3.02. (a) : Load our car images dataset.
+    positiveList = loadDataset(positiveFile)
+    negativeList = loadDataset(negativeFile)
+
+    print("Initial size of car set: {0} \t\t (dim: {1})".format(len(positiveList), positiveList[0].shape))
+    print("Initial size of non-car set: {0} \t\t (dim: {1})".format(len(negativeList), negativeList[0].shape))
+
+    # As 3.02. (b) : Get a sample of negative images. (returns list in negativeSample)
+    sampleNegativeImages(negativeList, negativeSample, size=(64,64), N=200)
+
+    print("Size of non-car sample set: {0} \t (dim: {1})".format(len(negativeSample), negativeSample[0].shape))
+
+    # As 3.02. (c) : [EXTRA] increase the car dataset by generating new positive images
+    # (see https://www.kaggle.com/tomahim/image-manipulation-augmentation-with-skimage)
+
+    #--------------------------------------------------#
+    #                                                  #
+    # Classification Model using SVM with HOG Features #
+    #                                                  #
+    #--------------------------------------------------#
+
+    # Computing the HOG features for each image
+    hogList = []
+    computeHOG(positiveList, hogList, size=(64,64))
+    computeHOG(negativeSample, hogList, size=(64,64))
+    hogList = [vec.flatten() for vec in hogList]
+
+    # create the labels (1: car, -1: non-car)
+    [labels.append(+1) for _ in range(len(positiveList))]
+    [labels.append(-1) for _ in range(len(negativeSample))]
 
 
-# Folder where the dataset images are saved.
-folder = "./inputs"
+    # Split into a train/test/validation set (70/15/15)
+    np_labels = np.array(labels).reshape(len(labels),1)
+    np_hogs = np.array(hogList)
+    dataset = np.hstack((np_hogs,np_labels))
 
-# Dataset filenames.
-positiveFile = glob("%s/cars/*.png" % folder)
-negativeFile = glob("%s/non-cars/*.png" % folder)
+    X_train, X_test, y_train, y_test = train_test_split(dataset[:,:-1], dataset[:,-1], test_size=0.15, random_state=1)
+    X_train, X_val,  y_train, y_val  = train_test_split(X_train, y_train, test_size=0.1765, random_state=1)
 
-# Vectors used to train the dataset.
-positiveList = []
-negativeList = []
-negativeSample = []
-labels = []
+    print("sizes of train/validation/test sets: {0}/{1}/{2}".format(X_train.shape[0],X_val.shape[0],X_test.shape[0]))
 
-# Load the INRIA dataset.
-positiveList = loadDataset(positiveFile)
-negativeList = loadDataset(negativeFile)
+    svc = svm.SVC(kernel='linear', probability=True, class_weight='balanced')
+    svc.fit(X_train,y_train)
 
-print(str(len(positiveList)))
-print(str(len(negativeList)))
+    # store prediction results on the validation set
+    train_pred  = svc.predict(X_train)
+    val_pred    = svc.predict(X_val)
+    test_pred   = svc.predict(X_test)
 
-# Get a sample of negative images. (returns list in negativeSample)
-sampleNegativeImages(negativeList, negativeSample)
+    train_acc    = sklearn.metrics.accuracy_score(y_train,train_pred)
+    val_acc      = sklearn.metrics.accuracy_score(y_val, val_pred)
+    test_acc     = sklearn.metrics.accuracy_score(y_test, test_pred)
+    print("Accuracy on the training set: \t\t {number:.{digit}f}".format(number=train_acc, digit=3))
+    print("Accuracy on the validation set: \t {number:.{digit}f}".format(number=val_acc, digit=3))
 
-#<!--------------------------------------------------------------------------->
-#<!--                            YOUR CODE HERE                             -->
-#<!--------------------------------------------------------------------------->
+    # confusion matrix on the validation set
+    print("Confusion on the validation set.")
+    print("1st Col/Row: Non-Cars | 2nd Col/Row: Cars")
+    print(sklearn.metrics.confusion_matrix(y_val, val_pred))
 
+    print("\n\nAccuracy on the test set: \t {number:.{digit}f}".format(number=test_acc, digit=3))
+    print("Confusion on the test set.")
+    print("1st Col/Row: Non-Cars | 2nd Col/Row: Cars")
+    print(sklearn.metrics.confusion_matrix(y_test, test_pred))
 
+    joblib.dump(svc, './inputs/svm_model_weights.pkl') 
 
 #<!--------------------------------------------------------------------------->
 #<!--                                                                       -->
 #<!--------------------------------------------------------------------------->
+
+# put executing code in main, so that the defined functions
+# can be imported in a separate script without executing
+# the code
+if __name__ == "__main__":
+    main()
+
