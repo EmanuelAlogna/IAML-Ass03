@@ -138,23 +138,6 @@ def showImages(images):
         if cv2.waitKey(15) & 0xFF == ord("q"):
             break
 
-# code from Exercise 10
-def getSVMDetector(svm):
-    """
-    This function calculates and returns the feature descriptor.
-    """
-    # Retrieves all the support vectors.
-    sv = svm.getSupportVectors()
-
-    # Retrieves the decision function.
-    rho, _, _ = svm.getDecisionFunction(0)
-
-    # Transpose the support vectors matrix.
-    sv = np.transpose(sv)
-
-    # Returns the feature descriptor.
-    return np.append(sv, [[-rho]], 0)
-
 def computeHOG(images, hogList, size=(64, 64)):
     """
     This function computes the Histogram of Oriented Gradients (HOG) of each
