@@ -252,6 +252,8 @@ def main():
     np_labels = np.array(labels).reshape(len(labels),1)
     np_hogs = np.array(hogList)
     dataset = np.hstack((np_hogs,np_labels))
+    
+    np.save('./outputs/dataset.npy', dataset)
 
     X_train, X_test, y_train, y_test = train_test_split(dataset[:,:-1], dataset[:,-1], test_size=0.15, random_state=1)
     X_train, X_val,  y_train, y_val  = train_test_split(X_train, y_train, test_size=0.1765, random_state=1)
