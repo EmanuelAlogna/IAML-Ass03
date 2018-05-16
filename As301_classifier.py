@@ -29,6 +29,9 @@ from sklearn.externals import joblib
 from sklearn.model_selection import train_test_split
 import sys
 
+import imutils
+import matplotlib.pyplot as plt
+
 from glob import glob
 
 ########################################################################
@@ -39,6 +42,8 @@ def loadDataset(dataset):
     """
     # List of images.
     images = []
+
+
 
     # Read all filenames from the dataset.
     for filename in dataset:
@@ -68,6 +73,7 @@ def sampleNegativeImages(images, negativeSample, size=(64, 64), N=200):
     w, h = size[0], size[1]
 
     # Read all images from the negative list.
+
     for image in images:
 
         for j in range(N):
@@ -77,7 +83,32 @@ def sampleNegativeImages(images, negativeSample, size=(64, 64), N=200):
             sample = image[y:y + h, x:x + w].copy()
             negativeSample.append(sample)
 
-    return 
+    return
+
+
+def samplePositiveImages(images, positiveSample, size=(64, 64), N=200):
+    """
+    The dataset has not enough positive images, so we'll increase it by generating new positive
+    images by, first, using linear transormation (rotation and reflection) on the
+    available positive subset
+    """
+
+    for image in images:
+    
+        rotated = imutils.rotate_bound(image, random.randint(-15,15))
+        
+        h, w, channels = rotated.shape
+        cropped_img = rotated[w//2 - 64//2:w//2 + 64//2, h//2 - 64//2:h//2 + 64//2]
+        
+        positiveSample.append(image);
+        positiveSample.append(cropped_img)
+        positiveSample.append(np.fliplr(image))
+        positiveSample.append(np.fliplr(cropped_img))
+    
+    print(len(positiveSample))
+
+    return
+
 
 def showImages(images):
     """
@@ -169,19 +200,33 @@ def main():
     positiveList = []
     negativeList = []
     negativeSample = []
+    positiveSample = []
     labels = []
 
     # As 3.02. (a) : Load our car images dataset.
     positiveList = loadDataset(positiveFile)
     negativeList = loadDataset(negativeFile)
 
+
     print("Initial size of car set: {0} \t\t (dim: {1})".format(len(positiveList), positiveList[0].shape))
     print("Initial size of non-car set: {0} \t\t (dim: {1})".format(len(negativeList), negativeList[0].shape))
 
+
     # As 3.02. (b) : Get a sample of negative images. (returns list in negativeSample)
     sampleNegativeImages(negativeList, negativeSample, size=(64,64), N=200)
+    
+    samplePositiveImages(positiveList, positiveSample, size=(64,64), N=200)
+    
 
     print("Size of non-car sample set: {0} \t (dim: {1})".format(len(negativeSample), negativeSample[0].shape))
+    
+    #print("Size of car sample set: {0} \t (dim: {1})".format(len(positiveSample), positiveSample[0].shape))
+
+
+
+
+
+
 
     # As 3.02. (c) : [EXTRA] increase the car dataset by generating new positive images
     # (see https://www.kaggle.com/tomahim/image-manipulation-augmentation-with-skimage)
@@ -194,12 +239,12 @@ def main():
 
     # Computing the HOG features for each image
     hogList = []
-    computeHOG(positiveList, hogList, size=(64,64))
+    computeHOG(positiveSample, hogList, size=(64,64))
     computeHOG(negativeSample, hogList, size=(64,64))
     hogList = [vec.flatten() for vec in hogList]
 
     # create the labels (1: car, -1: non-car)
-    [labels.append(+1) for _ in range(len(positiveList))]
+    [labels.append(+1) for _ in range(len(positiveSample))]
     [labels.append(-1) for _ in range(len(negativeSample))]
 
 
@@ -215,7 +260,7 @@ def main():
 
     svc = svm.SVC(kernel='linear', probability=True, class_weight='balanced')
     svc.fit(X_train,y_train)
-
+    
     # store prediction results on the validation set
     train_pred  = svc.predict(X_train)
     val_pred    = svc.predict(X_val)
