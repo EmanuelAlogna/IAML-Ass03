@@ -21,6 +21,7 @@ __version__ = "$Revision: 2018042401 $"
 ########################################################################
 import cv2
 import numpy as np
+from pathlib import Path
 from skimage.transform import pyramid_gaussian
 from sklearn.externals import joblib
 import sys
@@ -29,7 +30,8 @@ import As301_classifier
 
 ########################################################################
 
-INPUT_FILEPATH = "./inputs/videos/Cars_01.mov"
+INPUT_FILEPATH = Path("./inputs/videos/Cars_04.mov")
+FILENAME = INPUT_FILEPATH.stem
 
 ########################################################################
 
@@ -55,7 +57,7 @@ def detectCars(frame):
 
     # store the frame in different dimensions 
     # and begin with the lowest resolution
-    scaled_frames = list(pyramid_gaussian(frame, downscale=1.5, max_layer=8))
+    scaled_frames = list(pyramid_gaussian(frame, downscale=1.2, max_layer=8))
     scaled_frames = list(reversed(scaled_frames))
 
     detected_cars = []
@@ -69,7 +71,7 @@ def detectCars(frame):
         # print((scaled_height, scaled_width))
         # print("Scaling Factor : {}".format(SCALING_FACTOR))
 
-        if scaled_height < 300 or scaled_width < 400:
+        if scaled_height < 100 or scaled_width < 100:
             continue
 
         if scaled_height > 600 or scaled_width > 1100:
@@ -102,10 +104,11 @@ def detectCars(frame):
 
             # create a list of detected cars in the image
             if prediction == [1]:
+                # As 3.02. (k) : resolve overlapping bounding boxes
                 # do not add rectangles that are enclosed by 
                 # a previously detected rectangle
 
-                BORDER_PIXELS = 20
+                BORDER_PIXELS = 30
                 isOverlapping = False
 
                 for (prev_x,prev_y,prev_scale) in detected_cars:
@@ -134,9 +137,27 @@ def detectCars(frame):
 
     return res_image
 
+# this function subtracts the given frame to the matching 
+# empty image to find cars in the image
+def imageSub(frame, fileName):
+    # dimensions = frame.shape
+    # background = np.zeros(dimensions)
+    # if fileName[:-1] == "Cars_0":
+    #     background = cv2.imread("outputs/negatives/negative_" + fileName + ".png")
+    # background = cv2.resize(background,(dimensions[1],dimensions[0]))
+    # sub = cv2.subtract(frame,background)
+    # frame = cv2.resize(frame, (0, 0), fx=0.5, fy=0.5)
+    # cv2.imshow("Foreground", frame)
+    # background = cv2.resize(background, (0, 0), fx=0.5, fy=0.5)
+    # cv2.imshow("Background", background)
+    # sub = cv2.resize(sub, (0, 0), fx=0.5, fy=0.5)
+    # cv2.imshow("Subtraction", sub)
+    # cv2.waitKey(0)
+    return fgbg.apply(frame)
+
 # Setup Video
 
-capture = cv2.VideoCapture(INPUT_FILEPATH)
+capture = cv2.VideoCapture(str(INPUT_FILEPATH))
 
 # Get the video frame rate.
 fps = int(round(capture.get(cv2.CAP_PROP_FPS)))
@@ -146,9 +167,7 @@ fps = fps if fps > 0 else 30
 
 # Create an OpenCV window.
 cv2.namedWindow("Video", cv2.WINDOW_AUTOSIZE)
-
-# just use the first frame for test purposes
-retval, frame = capture.read()
+fgbg = cv2.createBackgroundSubtractorMOG2()
             
 while True:
     # Capture frame-by-frame.
@@ -158,15 +177,34 @@ while True:
     if not retval:
         break
 
-    frame = detectCars(frame)
+    frame = imageSub(frame,FILENAME)
 
     # Resize the frame.
-    frame = cv2.resize(frame, (0, 0), fx=0.5, fy=0.5)
+    scaleX, scaleY = (0.5,0.5)
+    frame = cv2.resize(frame, (0, 0), fx=scaleX, fy=scaleY)
+
+    # As 3.02. (j) : Define the ROI
+    # only analyze the road in the video, not the grass
+    # if FILENAME == "Cars_01":
+    #     frame[:,int(200*scaleX):int(875*scaleX),:] = detectCars(frame[:,int(200*scaleX):int(875*scaleX),:])
+    # elif FILENAME == "Cars_02":
+    #     frame[:int(600*scaleY),:int(550*scaleX),:] = detectCars(frame[:int(600*scaleY),:int(550*scaleX),:])
+    #     frame[:,int(400*scaleX):int(1400*scaleX),:] = detectCars(frame[:,int(400*scaleX):int(1400*scaleX),:])
+    # elif FILENAME == "Cars_03":
+    #     frame[:,int(500*scaleX):int(1700*scaleX),:] = detectCars(frame[:,int(500*scaleX):int(1700*scaleX),:])
+    # elif FILENAME == "Cars_04":
+    #     frame[:int(450*scaleY),:int(650*scaleX),:] = detectCars(frame[:int(450*scaleY),:int(650*scaleX),:])
+    #     frame[:,int(400*scaleX):int(1500*scaleX),:] = detectCars(frame[:,int(400*scaleX):int(1500*scaleX),:])
+    # elif FILENAME == "Cars_05":
+    #     frame[int(300*scaleY):,int(50*scaleX):int(800*scaleX),:] = detectCars(frame[int(300*scaleY):,int(50*scaleX):int(800*scaleX),:])
+    #     frame[int(300*scaleY):,int(950*scaleX):int(1750*scaleX),:] = detectCars(frame[int(300*scaleY):,int(950*scaleX):int(1750*scaleX),:])
+    # else:
+    #     frame = detectCars(frame)
 
     # Display the resulting frame.
     cv2.imshow("Video", frame)
     if cv2.waitKey(fps) & 0xFF == ord("q"):
-        break
+        break   
 
 
 #<!--------------------------------------------------------------------------->
