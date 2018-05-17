@@ -33,6 +33,15 @@ import imutils
 import matplotlib.pyplot as plt
 
 from glob import glob
+from random import shuffle
+
+from keras.models import Sequential
+from keras.layers import Dense, Dropout, Activation, Flatten
+from keras.layers import Convolution2D, MaxPooling2D
+from keras.utils import np_utils
+from keras.datasets import mnist
+
+
 
 ########################################################################
 
@@ -105,87 +114,31 @@ def samplePositiveImages(images, positiveSample, size=(64, 64), N=200):
         positiveSample.append(np.fliplr(image))
         positiveSample.append(np.fliplr(cropped_img))
     
-    print(len(positiveSample))
 
     return
 
-
-def showImages(images):
-    """
-    Helper function to view images generated in the script without having to store
-    them on the disk. Use 'a' and 'd' key to go to the next image.
-    """
-    idx = 0
-
-    while True:
-
-        cv2.imshow("Image", images[idx])
-
-        if cv2.waitKey(15) & 0xFF == ord("d"):
-            if idx+1 >= len(images):
-                print("This is the last image in the set.")
-            else:
-                idx += 1
-                print("Viewing image no. {0} / {1}".format(idx+1, len(images)))
-
-        if cv2.waitKey(15) & 0xFF == ord("a"):
-            if idx-1 < 0:
-                print("This is the first image in the set.")
-            else:
-                idx -= 1
-                print("Viewing image no. {0} / {1}".format(idx+1, len(images)))
-
-        if cv2.waitKey(15) & 0xFF == ord("q"):
-            break
-
-# code from Exercise 10
-def getSVMDetector(svm):
-    """
-    This function calculates and returns the feature descriptor.
-    """
-    # Retrieves all the support vectors.
-    sv = svm.getSupportVectors()
-
-    # Retrieves the decision function.
-    rho, _, _ = svm.getDecisionFunction(0)
-
-    # Transpose the support vectors matrix.
-    sv = np.transpose(sv)
-
-    # Returns the feature descriptor.
-    return np.append(sv, [[-rho]], 0)
-
-def computeHOG(images, hogList, size=(64, 64)):
-    """
-    This function computes the Histogram of Oriented Gradients (HOG) of each
-    image from the dataset.
-    [Code from Exercise 10 solution. Could be used for a SVM with HOG Features]
-    """
-    # Creates a HOG descriptor with custom parameters
-    # (only changed the window size from the default settings to function
-    # correctly for our 64x64 input images)
-    # see (https://stackoverflow.com/questions/28390614/opencv-hogdescripter-python?utm_medium=organic&utm_source=google_rich_qa&utm_campaign=google_rich_qa)
-    hog = cv2.HOGDescriptor("./inputs/hog.xml")
+def getY(positiveImages, negativeImages):
     
-    # Read all images from the image list.
-    for image in images:
+    sizePositive = len(positiveImages)
+    sizeNegative = len(negativeImages)
+
+    labels = []
     
-        # Image resolution
-        h, w = image.shape[:2]
+    for x in range (0, sizePositive):
+        labels.append(1)
 
-        # Calculate HOG
-        if w >= size[0] and h >= size[1]:
+    for x in range (0, sizeNegative):
+        labels.append(-1)
 
-            # Region of Interest
-            y = (h - size[1]) // 2
-            x = (w - size[0]) // 2
-            roi = image[y:y + size[1], x:x + size[0]].copy()
+    shuffle(labels)
+    return labels;
 
-            # Compute HOG
-            grayscale = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-            hogList.append(hog.compute(grayscale))
+#<!--------------------------------------------------------------------------->
+#<!--------------------------------------------------------------------------->
+#<!--------------------------------------------------------------------------->
+#<!--------------------------------------------------------------------------->
 
-    return 
+
 
 def main():
 
@@ -202,14 +155,14 @@ def main():
     negativeSample = []
     positiveSample = []
     labels = []
+    X = []
 
     # As 3.02. (a) : Load our car images dataset.
     positiveList = loadDataset(positiveFile)
     negativeList = loadDataset(negativeFile)
-
-
-    print("Initial size of car set: {0} \t\t (dim: {1})".format(len(positiveList), positiveList[0].shape))
-    print("Initial size of non-car set: {0} \t\t (dim: {1})".format(len(negativeList), negativeList[0].shape))
+    
+    #print("Initial size of car set: {0} \t\t (dim: {1})".format(len(positiveList), positiveList[0].shape))
+    #print("Initial size of non-car set: {0} \t\t (dim: {1})".format(len(negativeList), negativeList[0].shape))
 
 
     # As 3.02. (b) : Get a sample of negative images. (returns list in negativeSample)
@@ -217,74 +170,89 @@ def main():
     
     samplePositiveImages(positiveList, positiveSample, size=(64,64), N=200)
     
-
+  
     print("Size of non-car sample set: {0} \t (dim: {1})".format(len(negativeSample), negativeSample[0].shape))
     
-    #print("Size of car sample set: {0} \t (dim: {1})".format(len(positiveSample), positiveSample[0].shape))
 
+    #-----------------------------------------------------------#
+    #                                                           #
+    # Classification Model using Convolutionary neural network  #
+    #                                                           #
+    #-----------------------------------------------------------#
 
+    np.random.seed(123)
+    y = getY(positiveSample, negativeSample)
 
+    for image in positiveSample:
+        X.append(image)
 
+    for image in negativeSample:
+        X.append(image)
 
+    shuffle(X)
 
+    print(len(X))
+    print(len(y))
 
-    # As 3.02. (c) : [EXTRA] increase the car dataset by generating new positive images
-    # (see https://www.kaggle.com/tomahim/image-manipulation-augmentation-with-skimage)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=0.66, random_state=1, shuffle=True)
 
-    #--------------------------------------------------#
-    #                                                  #
-    # Classification Model using SVM with HOG Features #
-    #                                                  #
-    #--------------------------------------------------#
+    X_train = np.array(X_train)
+    y_train = np.array(y_train)
+    X_test = np.array(X_test)
+    y_test = np.array(y_test)
 
-    # Computing the HOG features for each image
-    hogList = []
-    computeHOG(positiveSample, hogList, size=(64,64))
-    computeHOG(negativeSample, hogList, size=(64,64))
-    hogList = [vec.flatten() for vec in hogList]
+    print (X_train.shape)
 
-    # create the labels (1: car, -1: non-car)
-    [labels.append(+1) for _ in range(len(positiveSample))]
-    [labels.append(-1) for _ in range(len(negativeSample))]
+    print("Count of non-car/car in training data")
+    print(y_train.shape[0])
+    print("Count of non-car/car in test data")
+    print(y_test.shape[0])
 
+    # the final preprocessing step for the input data is to convert our data
+    # type to float 32 and normalize our data values to the range[0, 1]
+    X_train = X_train.astype('float32')
+    X_test = X_test.astype('float32')
+    X_train /= 255
+    X_test /= 255
 
-    # Split into a train/test/validation set (70/15/15)
-    np_labels = np.array(labels).reshape(len(labels),1)
-    np_hogs = np.array(hogList)
-    dataset = np.hstack((np_hogs,np_labels))
-    
-    np.save('./outputs/dataset.npy', dataset)
+    # preprocessing class labels for Keras
+    y_train = np_utils.to_categorical(y_train, 2)
+    y_test = np_utils.to_categorical(y_test, 2)
+    print(y_train.shape)
 
-    X_train, X_test, y_train, y_test = train_test_split(dataset[:,:-1], dataset[:,-1], test_size=0.15, random_state=1)
-    X_train, X_val,  y_train, y_val  = train_test_split(X_train, y_train, test_size=0.1765, random_state=1)
+    model = Sequential()
 
-    print("sizes of train/validation/test sets: {0}/{1}/{2}".format(X_train.shape[0],X_val.shape[0],X_test.shape[0]))
+    #32 corresponds to the number of convolution filters to use
+    #3 corresponds to the numbers of rows in each convolution kernel
+    #3 corresponds to the number of columns in each convolution kernel
+    model.add(Convolution2D(32, (3, 3), activation='relu', input_shape=(64,64,3)))
 
-    svc = svm.SVC(kernel='linear', probability=True, class_weight='balanced')
-    svc.fit(X_train,y_train)
-    
-    # store prediction results on the validation set
-    train_pred  = svc.predict(X_train)
-    val_pred    = svc.predict(X_val)
-    test_pred   = svc.predict(X_test)
+    print (model.output_shape)
 
-    train_acc    = sklearn.metrics.accuracy_score(y_train,train_pred)
-    val_acc      = sklearn.metrics.accuracy_score(y_val, val_pred)
-    test_acc     = sklearn.metrics.accuracy_score(y_test, test_pred)
-    print("Accuracy on the training set: \t\t {number:.{digit}f}".format(number=train_acc, digit=3))
-    print("Accuracy on the validation set: \t {number:.{digit}f}".format(number=val_acc, digit=3))
+    # now we can simply add more layers to our model:
+    model.add(Convolution2D(32, (3, 3), activation='relu'))
+    model.add(MaxPooling2D(pool_size=(2,2)))
+    model.add(Dropout(0.25))  # this layer is important because it prevents overfitting
 
-    # confusion matrix on the validation set
-    print("Confusion on the validation set.")
-    print("1st Col/Row: Non-Cars | 2nd Col/Row: Cars")
-    print(sklearn.metrics.confusion_matrix(y_val, val_pred))
+    model.add(Flatten())
+    model.add(Dense(128, activation='relu'))
+    model.add(Dropout(0.5))
+    model.add(Dense(2, activation='softmax')) #output layer with size of 2 (2 classes)
 
-    print("\n\nAccuracy on the test set: \t {number:.{digit}f}".format(number=test_acc, digit=3))
-    print("Confusion on the test set.")
-    print("1st Col/Row: Non-Cars | 2nd Col/Row: Cars")
-    print(sklearn.metrics.confusion_matrix(y_test, test_pred))
+    # compile model
+    model.compile(loss='categorical_crossentropy',
+                  optimizer='adam',
+                  metrics=['accuracy'])
+    # fit model on training data
+    model.fit(X_train, y_train,
+              batch_size=32, nb_epoch=2, verbose=1)
 
-    joblib.dump(svc, './inputs/svm_model_weights.pkl') 
+    # evaluate model on test data
+    score = model.evaluate(X_test, y_test, verbose=0)
+
+    print(score)
+
+    model.save('./outputs/datamodel.h5')
 
 #<!--------------------------------------------------------------------------->
 #<!--                                                                       -->
