@@ -30,7 +30,7 @@ import As301_classifier
 
 ########################################################################
 
-INPUT_FILEPATH = Path("./inputs/videos/Cars_04.mov")
+INPUT_FILEPATH = Path("./inputs/videos/Cars_01.mov")
 FILENAME = INPUT_FILEPATH.stem
 
 ########################################################################
@@ -50,7 +50,7 @@ def sliding_window(image, stepSize=(24,24), windowSize=(64,64)):
             # yield the current window
             yield (x, y, image[y:y + windowSize[1], x:x + windowSize[0]])
 
-# function returns a image where rectangles mark the detected cars
+# function returns a list of rectangles that were detected as cars
 def detectCars(frame):
 
     org_height, org_width = frame.shape[:2] 
@@ -61,6 +61,7 @@ def detectCars(frame):
     scaled_frames = list(reversed(scaled_frames))
 
     detected_cars = []
+    rectangles = []
 
     # loop over every image scale
     for image_scaled in scaled_frames:
@@ -71,7 +72,7 @@ def detectCars(frame):
         # print((scaled_height, scaled_width))
         # print("Scaling Factor : {}".format(SCALING_FACTOR))
 
-        if scaled_height < 100 or scaled_width < 100:
+        if scaled_height < 64 or scaled_width < 64:
             continue
 
         if scaled_height > 600 or scaled_width > 1100:
@@ -131,29 +132,34 @@ def detectCars(frame):
 
     res_image = frame.copy()
     for (x,y,scale) in detected_cars:
-        cv2.rectangle(res_image, 
-            (int(x * scale), int(y * scale)) , 
-            (int((x+64)*scale),int((y+64)*scale)), (0,255,0),2)
+        # cv2.rectangle(res_image, 
+        #     (int(x * scale), int(y * scale)) , 
+        #     (int((x+64)*scale),int((y+64)*scale)), (0,255,0),2)
+        rectangles.append((
+                    int(x * scale),
+                    int(y * scale),
+                    int(64*scale),
+                    int(64*scale)
+            ))
 
-    return res_image
+    return rectangles
 
-# this function subtracts the given frame to the matching 
-# empty image to find cars in the image
-def imageSub(frame, fileName):
-    # dimensions = frame.shape
-    # background = np.zeros(dimensions)
-    # if fileName[:-1] == "Cars_0":
-    #     background = cv2.imread("outputs/negatives/negative_" + fileName + ".png")
-    # background = cv2.resize(background,(dimensions[1],dimensions[0]))
-    # sub = cv2.subtract(frame,background)
-    # frame = cv2.resize(frame, (0, 0), fx=0.5, fy=0.5)
-    # cv2.imshow("Foreground", frame)
-    # background = cv2.resize(background, (0, 0), fx=0.5, fy=0.5)
-    # cv2.imshow("Background", background)
-    # sub = cv2.resize(sub, (0, 0), fx=0.5, fy=0.5)
-    # cv2.imshow("Subtraction", sub)
-    # cv2.waitKey(0)
-    return fgbg.apply(frame)
+# uses background substraction to find ROIs for our classifier
+def backgroundDetection(frame):
+    rectangles = []
+    processed = fgbg.apply(frame)
+    _, contours, hierarchy = cv2.findContours(processed, cv2.RETR_LIST,
+                                              cv2.CHAIN_APPROX_SIMPLE)
+
+    for cnt in contours:
+        area = cv2.contourArea(cnt)
+        if (area < 500):
+            continue
+        x,y,w,h = cv2.boundingRect(cnt)
+        rectangles.append((x,y,w,h))
+        # cv2.rectangle(frame,(x,y),(x+w,y+h),(0,255,0),2)
+
+    return rectangles
 
 # Setup Video
 
@@ -177,11 +183,27 @@ while True:
     if not retval:
         break
 
-    frame = imageSub(frame,FILENAME)
+    bgRectangles = backgroundDetection(frame)
+
+    detectedRect = []
+
+    # (x,y,w,h)
+    for (x,y,w,h) in bgRectangles:
+        if w*h < 10000:
+            continue
+        print(x,y,w,h)
+        bound_x = 50 if x < 50 else x
+        bound_y = 50 if y < 50 else y
+        detections = detectCars(frame[y-bound_y:y+h+bound_y,x-bound_x:x+w+bound_x,:])
+        detections = [(x1+(x-bound_x),y1+(y-bound_y),w1,h1) for (x1,y1,w1,h1) in detections]
+        detectedRect += detections
+
+    for (x,y,w,h) in detectedRect:
+        cv2.rectangle(frame,(x,y),(x+w,y+h),(0,255,0),2)
 
     # Resize the frame.
-    scaleX, scaleY = (0.5,0.5)
-    frame = cv2.resize(frame, (0, 0), fx=scaleX, fy=scaleY)
+    # scaleX, scaleY = (0.5,0.5)
+    # frame = cv2.resize(frame, (0, 0), fx=scaleX, fy=scaleY)
 
     # As 3.02. (j) : Define the ROI
     # only analyze the road in the video, not the grass
