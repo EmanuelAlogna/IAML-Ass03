@@ -21,6 +21,7 @@ __version__ = "$Revision: 2018042401 $"
 ########################################################################
 import cv2
 import numpy as np
+import os
 import pandas as pd
 import random
 import sklearn
@@ -30,7 +31,6 @@ from sklearn.model_selection import train_test_split
 import sys
 
 import imutils
-import matplotlib.pyplot as plt
 
 from glob import glob
 
@@ -198,21 +198,12 @@ def main():
     # As 3.02. (b) : Get a sample of negative images. (returns list in negativeSample)
     sampleNegativeImages(negativeList, negativeSample, size=(64,64), N=200)
     
+    # As 3.02. (c) : [EXTRA] increase the car dataset by generating new positive images
     samplePositiveImages(positiveList, positiveSample, size=(64,64), N=200)
     
 
     print("Size of non-car sample set: {0} \t (dim: {1})".format(len(negativeSample), negativeSample[0].shape))
-    
-    #print("Size of car sample set: {0} \t (dim: {1})".format(len(positiveSample), positiveSample[0].shape))
-
-
-
-
-
-
-
-    # As 3.02. (c) : [EXTRA] increase the car dataset by generating new positive images
-    # (see https://www.kaggle.com/tomahim/image-manipulation-augmentation-with-skimage)
+    print("Size of car sample set: {0} \t\t (dim: {1})".format(len(positiveSample), positiveSample[0].shape))
 
     #--------------------------------------------------#
     #                                                  #
@@ -230,13 +221,32 @@ def main():
     [labels.append(+1) for _ in range(len(positiveSample))]
     [labels.append(-1) for _ in range(len(negativeSample))]
 
-
     # Split into a train/test/validation set (70/15/15)
     np_labels = np.array(labels).reshape(len(labels),1)
     np_hogs = np.array(hogList)
     dataset = np.hstack((np_hogs,np_labels))
     
     np.save('./outputs/dataset.npy', dataset)
+
+    # store the 2500 images in a separate output folder
+    if not os.path.isdir("./outputs/extra_images/"):
+        os.makedirs("./outputs/extra_images/")
+
+    file_names = []
+    idx = 0
+    for image in (positiveSample + negativeSample):
+        fname = "./outputs/extra_images/Cars_" + str(idx) + "_Extra.png"
+        cv2.imwrite(fname, image)
+        file_names.append(fname) 
+        idx += 1
+    print("Done storing the " + str(len(positiveSample+negativeSample)) + " images.")
+
+    # also store as CSV 
+    df = pd.DataFrame(data={
+                    'files' : file_names,
+                    'HOG'   : [row for row in dataset[:,:-1]], 
+                    'label' : dataset[:,-1]})
+    df.to_csv("./outputs/hog_dataset.csv")
 
     X_train, X_test, y_train, y_test = train_test_split(dataset[:,:-1], dataset[:,-1], test_size=0.15, random_state=1)
     X_train, X_val,  y_train, y_val  = train_test_split(X_train, y_train, test_size=0.1765, random_state=1)
