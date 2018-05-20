@@ -187,7 +187,7 @@ def main():
 
     shuffle(X)
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=0.66, random_state=1, shuffle=True)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=0.85, random_state=1, shuffle=True)
 
     X_train = np.array(X_train)
     y_train = np.array(y_train)
@@ -261,8 +261,8 @@ def main():
                   optimizer='adam',
                   metrics=['accuracy'])
     # fit model on training data
-    model.fit(X_train, y_train,
-              batch_size=32, nb_epoch=3, verbose=1)
+    history = model.fit(X_train, y_train, validation_split=0.1765,
+              batch_size=32, nb_epoch=30, verbose=1)
 
     # evaluate model on the train data
     print("Train Model Eval: {}".format(model.evaluate(X_train,  y_train, verbose=1)))
@@ -270,7 +270,7 @@ def main():
     # evaluate model on test data
     print("Test Model Eval: {}".format(model.evaluate(X_test, y_test, verbose=1)))
     
-    # model.save('./outputs/datamodel.h5')
+    model.save('./outputs/datamodel.h5')
 
     y_test_pred = model.predict(X_test)
 
@@ -305,6 +305,26 @@ def main():
 
     accuracyTrain = sklearn.metrics.accuracy_score(y_trainBeforeProcessing, y_train_pred_format)
     print("Accuracy on the training set: {}".format(accuracyTrain))
+
+
+    # list all data in history
+    print(history.history.keys())
+    # summarize history for accuracy
+    plt.plot(history.history['acc'])
+    plt.plot(history.history['val_acc'])
+    plt.title('Model accuracy')
+    plt.ylabel('Accuracy')
+    plt.xlabel('Epoch')
+    plt.legend(['Train', 'Test'], loc='upper left')
+    plt.show()
+    # summarize history for loss
+    plt.plot(history.history['loss'])
+    plt.plot(history.history['val_loss'])
+    plt.title('Model loss')
+    plt.ylabel('Loss')
+    plt.xlabel('Epoch')
+    plt.legend(['Train', 'Test'], loc='upper left')
+    plt.show()
 
 #<!--------------------------------------------------------------------------->
 #<!--                                                                       -->
