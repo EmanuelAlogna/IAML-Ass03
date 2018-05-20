@@ -222,14 +222,13 @@ def main():
 
     model = Sequential()
 
-    #32 corresponds to the number of convolution filters to use
-    #3 corresponds to the numbers of rows in each convolution kernel
-    #3 corresponds to the number of columns in each convolution kernel
+    # 32 corresponds to the number of convolution filters to use
+    # 3 corresponds to the numbers of rows in each convolution kernel
+    # 3 corresponds to the number of columns in each convolution kernel
     model.add(Convolution2D(32, (3, 3), activation='relu', input_shape=(64,64,3)))
 
     print (model.output_shape)
-
-    # now we can simply add more layers to our model:
+    
     model.add(Convolution2D(32, (3, 3), activation='relu'))
     model.add(MaxPooling2D(pool_size=(2,2)))
     model.add(Dropout(0.25))  # this layer is important because it prevents overfitting

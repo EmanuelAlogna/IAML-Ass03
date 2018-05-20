@@ -20,6 +20,9 @@ __version__ = "$Revision: 2018042401 $"
 
 ########################################################################
 import cv2
+from enum import Enum
+import keras
+from keras.models import load_model
 import numpy as np
 from pathlib import Path
 from skimage.transform import pyramid_gaussian
@@ -32,6 +35,10 @@ import As301_classifier
 
 INPUT_FILEPATH = Path("./inputs/videos/Cars_05.mov")
 FILENAME = INPUT_FILEPATH.stem
+
+class Classifier(Enum):
+    SVM = 0   # manual construction of the homography Htg
+    CNN = 1 
 
 ########################################################################
 
@@ -51,7 +58,7 @@ def sliding_window(image, stepSize=(16,16), windowSize=(64,64)):
             yield (x, y, image[y:y + windowSize[1], x:x + windowSize[0]])
 
 # function returns a list of rectangles that were detected as cars
-def detectCars(frame):
+def detectCars(frame, model = Classifier.SVM):
 
     org_height, org_width = frame.shape[:2] 
 
@@ -81,22 +88,36 @@ def detectCars(frame):
             # convert from float [0,1] range to integer [0,255] range
             image_window = image_window * 255
             image_window = image_window.astype(np.uint8)
-            hogList = []
+            prediction = []
 
-            # Compute the HOG
-            As301_classifier.computeHOG([image_window],hogList, size=(64,64))
+            if model == Classifier.SVM:
 
-            # load the SVM classifier model
-            classifier = joblib.load("./inputs/svm_model_weights.pkl")
+                hogList = []
 
-            try:
-                hog_featuers = hogList[0].reshape(1,1764)
-                prediction = classifier.predict(hog_featuers)
-            except IndexError:
-                print("Caught an IndexError")
-                print((x,y))
-                print(hogList)
-                sys.exit()
+                # Compute the HOG
+                As301_classifier.computeHOG([image_window],hogList, size=(64,64))
+
+                # load the SVM classifier model
+                clf = joblib.load("./inputs/svm_model_weights.pkl")
+
+                try:
+                    hog_features = hogList[0].reshape(1,1764)
+                    prediction = clf.predict(hog_features)
+                except IndexError:
+                    print("Caught an IndexError")
+                    print((x,y))
+                    print(hogList)
+                    sys.exit()
+
+            elif model == Classifier.CNN:
+                pass
+
+                clf = load_model("./outputs/datamodel.h5")
+
+                prediction = clf.predict_classes(np.array([image_window]))
+
+            else:
+                raise Exception("Did not specify a valid model.")
 
             # create a list of detected cars in the image
             if prediction == [1]:
@@ -125,6 +146,8 @@ def detectCars(frame):
 
                 if not isOverlapping:
                     detected_cars.append((x,y,SCALING_FACTOR))
+
+            
 
     res_image = frame.copy()
     for (x,y,scale) in detected_cars:
@@ -227,7 +250,7 @@ while True:
         bound_y = PIXEL_BOUND if y >= PIXEL_BOUND else y
         # print((y-bound_y,y+h+bound_y,x-bound_x,x+w+bound_x))
         cv2.rectangle(frame, (x-bound_x, y-bound_y), (x+w+bound_x, y+h+bound_y), (0,0,255), 2 )
-        detections = detectCars(frame[y-bound_y:y+h+bound_y,x-bound_x:x+w+bound_x,:])
+        detections = detectCars(frame[y-bound_y:y+h+bound_y,x-bound_x:x+w+bound_x,:], model=Classifier.CNN)
         detections = [(x1+(x-bound_x),y1+(y-bound_y),w1,h1) for (x1,y1,w1,h1) in detections]
         detectedRect += detections
 
