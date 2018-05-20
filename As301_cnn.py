@@ -262,7 +262,7 @@ def main():
                   metrics=['accuracy'])
     # fit model on training data
     history = model.fit(X_train, y_train, validation_split=0.1765,
-              batch_size=32, nb_epoch=30, verbose=1)
+              batch_size=32, nb_epoch=1, verbose=1)
 
     # evaluate model on the train data
     print("Train Model Eval: {}".format(model.evaluate(X_train,  y_train, verbose=1)))
@@ -270,7 +270,7 @@ def main():
     # evaluate model on test data
     print("Test Model Eval: {}".format(model.evaluate(X_test, y_test, verbose=1)))
     
-    model.save('./outputs/datamodel.h5')
+    model.save('./outputs/datamodel50epochs.h5')
 
     y_test_pred = model.predict(X_test)
 
@@ -316,6 +316,7 @@ def main():
     plt.ylabel('Accuracy')
     plt.xlabel('Epoch')
     plt.legend(['Train', 'Test'], loc='upper left')
+    plt.ylim((0,1))
     plt.show()
     # summarize history for loss
     plt.plot(history.history['loss'])
