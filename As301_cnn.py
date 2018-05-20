@@ -211,11 +211,35 @@ def main():
 
     y_trainBeforeProcessing = y_train
     y_testBeforeProcessing = y_test
+
+    print("Before Categorization")
+    print(y_train[np.where(y_train == -1.0)].shape)
+    print(y_train[np.where(y_train == 1.0)].shape)
     
+    print(y_train[:5])
     # preprocessing class labels for Keras
-    y_train = np_utils.to_categorical(y_train, 2)
-    y_test = np_utils.to_categorical(y_test, 2)
-    """
+    y_train_1hot = []
+    for y in y_train:
+        if y == -1:
+            y_train_1hot.append([1,0])
+        elif y == 1:
+            y_train_1hot.append([0,1])
+
+    y_test_1hot = []
+    for y in y_test:
+        if y == -1:
+            y_test_1hot.append([1,0])
+        elif y == 1:
+            y_test_1hot.append([0,1])
+
+    y_train = np.array(y_train_1hot)
+    y_test  = np.array(y_test_1hot)
+
+    print("After Categorization")
+    print(sum([row[0] for row in y_train]))
+    print(sum([row[1] for row in y_train]))
+    # sys.exit()
+    
     model = Sequential()
 
     # 32 corresponds to the number of convolution filters to use
@@ -240,56 +264,47 @@ def main():
     model.fit(X_train, y_train,
               batch_size=32, nb_epoch=3, verbose=1)
 
+    # evaluate model on the train data
+    print("Train Model Eval: {}".format(model.evaluate(X_train,  y_train, verbose=1)))
+
     # evaluate model on test data
-    score = model.evaluate(X_test, y_test, verbose=1)
-
-    print(score)
+    print("Test Model Eval: {}".format(model.evaluate(X_test, y_test, verbose=1)))
     
-    model.save('./outputs/datamodel.h5')
-    """
-    
-    model = load_model('./outputs/datamodel.h5')
+    # model.save('./outputs/datamodel.h5')
 
-    score = model.evaluate(X_test, y_test, verbose=1)
+    y_test_pred = model.predict(X_test)
 
-    y_pred = model.predict(X_test)
-
-    y_pred_format = []
-    for row in y_pred:
-        if row[0] == 1:
-            y_pred_format.append(-1)
-        if row[1] == 1:
-            y_pred_format.append(1)
+    y_test_pred_format = []
+    for row in y_test_pred:
+        if row[0] > row[1]:
+            y_test_pred_format.append(-1)
         else:
-            raise Exception("Invalid prediction label")
+            y_test_pred_format.append(1)
     
-    y_t = model.predict(X_train)
-    # print(score)
+    y_train_pred = model.predict(X_train)
 
-    y_t_format = []
-    for row in y_t:
-        if row[0] == 1:
-            y_t_format.append(-1)
-        if row[1] == 1:
-            y_t_format.append(1)
+    y_train_pred_format = []
+    for row in y_train_pred:
+        if row[0] > row[1]:
+            y_train_pred_format.append(-1)
         else:
-            raise Exception("Invalid prediction label")
+            y_train_pred_format.append(1)
 
-    print(y_testBeforeProcessing[:5])
-    print(y_pred)
+    print("Confusion on the test set.")
+    print("1st Col/Row: Non-Cars | 2nd Col/Row: Cars")
+    cm_test = confusion_matrix(y_testBeforeProcessing, y_test_pred_format)
+    print(cm_test)
 
-    cm = confusion_matrix(y_testBeforeProcessing, y_pred_format)
-    cm2 = confusion_matrix(y_trainBeforeProcessing, y_t_format)
-    
-    print(cm)
-    print(cm2)
+    print("Confusion on the training set.")
+    print("1st Col/Row: Non-Cars | 2nd Col/Row: Cars")
+    cm_train = confusion_matrix(y_trainBeforeProcessing, y_train_pred_format)
+    print(cm_train)
 
-    accuracyTest = sklearn.metrics.accuracy_score(y_testBeforeProcessing, y_pred_format)
-    print("Accuracy:")
-    print(accuracyTest)
+    accuracyTest = sklearn.metrics.accuracy_score(y_testBeforeProcessing, y_test_pred_format)
+    print("Accuracy on the test set: {}".format(accuracyTest))
 
-    accuracyTrain = sklearn.metrics.accuracy_score(y_trainBeforeProcessing, y_t_format)
-    print(accuracyTrain)
+    accuracyTrain = sklearn.metrics.accuracy_score(y_trainBeforeProcessing, y_train_pred_format)
+    print("Accuracy on the training set: {}".format(accuracyTrain))
 
 #<!--------------------------------------------------------------------------->
 #<!--                                                                       -->

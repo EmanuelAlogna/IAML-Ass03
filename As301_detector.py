@@ -40,6 +40,11 @@ class Classifier(Enum):
     SVM = 0   # manual construction of the homography Htg
     CNN = 1 
 
+# pre-load all models
+CLF_SVM = joblib.load("./inputs/svm_model_weights.pkl")
+CLF_CNN = load_model("./outputs/datamodel.h5")
+
+
 ########################################################################
 
 # We are going to apply both Image Pyramids and Sliding Windows 
@@ -50,7 +55,7 @@ class Classifier(Enum):
 
 # script for sliding window from "Sliding Windows for Object Detection with Python and OpenCV"
 # (see https://www.pyimagesearch.com/2015/03/23/sliding-windows-for-object-detection-with-python-and-opencv/)
-def sliding_window(image, stepSize=(16,16), windowSize=(64,64)):
+def sliding_window(image, stepSize=(8,8), windowSize=(64,64)):
     # slide a window across the image
     for y in range(0, image.shape[0], stepSize[0]):
         for x in range(0, image.shape[1], stepSize[1]):
@@ -64,7 +69,7 @@ def detectCars(frame, model = Classifier.SVM):
 
     # store the frame in different dimensions 
     # and begin with the lowest resolution
-    scaled_frames = list(pyramid_gaussian(frame, downscale=1.5, max_layer=3))
+    scaled_frames = list(pyramid_gaussian(frame, downscale=1.3, max_layer=5))
     scaled_frames = list(reversed(scaled_frames))
 
     detected_cars = []
@@ -80,29 +85,34 @@ def detectCars(frame, model = Classifier.SVM):
         if scaled_height < 64 or scaled_width < 64:
             continue
 
-        for (x, y, image_window) in sliding_window(image_scaled):
+        if True:
 
-            if x > scaled_width - 64 or y > scaled_height - 64:
-                continue
+            windows = list(sliding_window(image_scaled))
+
+            windows = [w for w in windows if (w[0] <= scaled_width - 64 and w[1] <= scaled_height - 64)]
+
+            x = [w[0] for w in windows]
+            y = [w[1] for w in windows]
+            image_window = np.array([w[2] for w in windows])
 
             # convert from float [0,1] range to integer [0,255] range
             image_window = image_window * 255
             image_window = image_window.astype(np.uint8)
-            prediction = []
+
+            predictions = []
 
             if model == Classifier.SVM:
 
                 hogList = []
 
                 # Compute the HOG
-                As301_classifier.computeHOG([image_window],hogList, size=(64,64))
-
-                # load the SVM classifier model
-                clf = joblib.load("./inputs/svm_model_weights.pkl")
+                As301_classifier.computeHOG(image_window,hogList, size=(64,64))
 
                 try:
-                    hog_features = hogList[0].reshape(1,1764)
-                    prediction = clf.predict(hog_features)
+                    hog_features = np.array(hogList)
+                    num_patches, num_hog_features = hog_features.shape[:2]
+                    hog_features = hog_features.reshape((num_patches,num_hog_features))
+                    predictions = CLF_SVM.predict(hog_features)
                 except IndexError:
                     print("Caught an IndexError")
                     print((x,y))
@@ -110,42 +120,46 @@ def detectCars(frame, model = Classifier.SVM):
                     sys.exit()
 
             elif model == Classifier.CNN:
-                pass
 
-                clf = load_model("./outputs/datamodel.h5")
-
-                prediction = clf.predict_classes(np.array([image_window]))
+                predictions = CLF_CNN.predict_classes(np.array(image_window))
 
             else:
                 raise Exception("Did not specify a valid model.")
 
             # create a list of detected cars in the image
-            if prediction == [1]:
-                # As 3.02. (k) : resolve overlapping bounding boxes
-                # do not add rectangles that are enclosed by 
-                # a previously detected rectangle
 
-                BORDER_PIXELS = 30
-                isOverlapping = False
+            for idx, pred in enumerate(predictions):
+                if pred == 1:
+                    detected_cars.append((x[idx],y[idx],SCALING_FACTOR))
 
-                currRect = (        int(x*SCALING_FACTOR),
-                                    int(y*SCALING_FACTOR),
-                                    int((x + 64) * SCALING_FACTOR),
-                                    int((y + 64) * SCALING_FACTOR) )
 
-                for (prev_x,prev_y,prev_scale) in detected_cars:
 
-                    oldRect = (     int(prev_x * prev_scale),
-                                    int(prev_y * prev_scale),
-                                    int((prev_x + 64) * prev_scale),
-                                    int((prev_y + 64) * prev_scale) )
+            # if prediction == [1]:
+            #     # As 3.02. (k) : resolve overlapping bounding boxes
+            #     # do not add rectangles that are enclosed by 
+            #     # a previously detected rectangle
 
-                    if rectangleOverlap(rect1 = oldRect, rect2 = currRect, margin = BORDER_PIXELS):
-                        isOverlapping = True
-                        break
+            #     BORDER_PIXELS = 30
+            #     isOverlapping = False
 
-                if not isOverlapping:
-                    detected_cars.append((x,y,SCALING_FACTOR))
+            #     currRect = (        int(x*SCALING_FACTOR),
+            #                         int(y*SCALING_FACTOR),
+            #                         int((x + 64) * SCALING_FACTOR),
+            #                         int((y + 64) * SCALING_FACTOR) )
+
+            #     for (prev_x,prev_y,prev_scale) in detected_cars:
+
+            #         oldRect = (     int(prev_x * prev_scale),
+            #                         int(prev_y * prev_scale),
+            #                         int((prev_x + 64) * prev_scale),
+            #                         int((prev_y + 64) * prev_scale) )
+
+            #         if rectangleOverlap(rect1 = oldRect, rect2 = currRect, margin = BORDER_PIXELS):
+            #             isOverlapping = True
+            #             break
+
+            #     if not isOverlapping:
+            #         detected_cars.append((x,y,SCALING_FACTOR))
 
             
 
@@ -203,6 +217,8 @@ fps = int(round(capture.get(cv2.CAP_PROP_FPS)))
 # Check if the fps variable has a correct value.
 fps = fps if fps > 0 else 30
 
+frame_count = 0
+
 # Create an OpenCV window.
 cv2.namedWindow("Video", cv2.WINDOW_AUTOSIZE)
 fgbg = cv2.createBackgroundSubtractorMOG2()
@@ -250,25 +266,28 @@ while True:
         bound_y = PIXEL_BOUND if y >= PIXEL_BOUND else y
         # print((y-bound_y,y+h+bound_y,x-bound_x,x+w+bound_x))
         cv2.rectangle(frame, (x-bound_x, y-bound_y), (x+w+bound_x, y+h+bound_y), (0,0,255), 2 )
-        detections = detectCars(frame[y-bound_y:y+h+bound_y,x-bound_x:x+w+bound_x,:], model=Classifier.CNN)
+        detections = detectCars(frame[y-bound_y:y+h+bound_y,x-bound_x:x+w+bound_x,:], model=Classifier.SVM)
         detections = [(x1+(x-bound_x),y1+(y-bound_y),w1,h1) for (x1,y1,w1,h1) in detections]
         detectedRect += detections
 
-    # print("Detections before overlap {0}".format(len(detectedRect)))
-    detect_count = 0
     for (x1,y1,w1,h1) in detectedRect:
-        isOverlapping = False
-        for (x2,y2,w2,h2) in detectedRect:
-            if (
-                (x1,y1,w1,h1) != (x2,y2,w2,h2) and 
-                rectangleOverlap((x2,y2,x2+w2,y2+h2), (x1,y1,x1+w1,y1+h1), margin=50)
-                ):
-                isOverlapping = True
-                break
+        cv2.rectangle(frame,(x1,y1),(x1+w1,y1+h1),(0,255,0),2)
 
-        if not isOverlapping:
-            detect_count += 1
-            cv2.rectangle(frame,(x1,y1),(x1+w1,y1+h1),(0,255,0),2)
+    # print("Detections before overlap {0}".format(len(detectedRect)))
+    # detect_count = 0
+    # for (x1,y1,w1,h1) in detectedRect:
+    #     isOverlapping = False
+    #     for (x2,y2,w2,h2) in detectedRect:
+    #         if (
+    #             (x1,y1,w1,h1) != (x2,y2,w2,h2) and 
+    #             rectangleOverlap((x2,y2,x2+w2,y2+h2), (x1,y1,x1+w1,y1+h1), margin=50)
+    #             ):
+    #             isOverlapping = True
+    #             break
+
+    #     if not isOverlapping:
+    #         detect_count += 1
+    #         cv2.rectangle(frame,(x1,y1),(x1+w1,y1+h1),(0,255,0),2)
 
     # print("Detections after overlap {0}".format(detect_count))
 
@@ -276,6 +295,8 @@ while True:
     cv2.imshow("Video", frame)
     if cv2.waitKey(fps) & 0xFF == ord("q"):
         break   
+
+    frame_count += 1
 
 
 #<!--------------------------------------------------------------------------->
