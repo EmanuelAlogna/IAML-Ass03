@@ -262,7 +262,7 @@ def main():
                   metrics=['accuracy'])
     # fit model on training data
     history = model.fit(X_train, y_train, validation_split=0.1765,
-              batch_size=32, nb_epoch=1, verbose=1)
+              batch_size=32, nb_epoch=50, verbose=1)
 
     # evaluate model on the train data
     print("Train Model Eval: {}".format(model.evaluate(X_train,  y_train, verbose=1)))
