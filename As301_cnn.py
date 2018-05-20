@@ -27,6 +27,7 @@ import sklearn
 from sklearn import svm
 from sklearn.externals import joblib
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import confusion_matrix
 import sys
 
 import imutils
@@ -40,6 +41,7 @@ from keras.layers import Dense, Dropout, Activation, Flatten
 from keras.layers import Convolution2D, MaxPooling2D
 from keras.utils import np_utils
 from keras.datasets import mnist
+from keras.models import load_model
 
 
 
@@ -160,19 +162,13 @@ def main():
     # As 3.02. (a) : Load our car images dataset.
     positiveList = loadDataset(positiveFile)
     negativeList = loadDataset(negativeFile)
-    
-    #print("Initial size of car set: {0} \t\t (dim: {1})".format(len(positiveList), positiveList[0].shape))
-    #print("Initial size of non-car set: {0} \t\t (dim: {1})".format(len(negativeList), negativeList[0].shape))
 
 
     # As 3.02. (b) : Get a sample of negative images. (returns list in negativeSample)
     sampleNegativeImages(negativeList, negativeSample, size=(64,64), N=200)
     
     samplePositiveImages(positiveList, positiveSample, size=(64,64), N=200)
-    
-  
-    print("Size of non-car sample set: {0} \t (dim: {1})".format(len(negativeSample), negativeSample[0].shape))
-    
+
 
     #-----------------------------------------------------------#
     #                                                           #
@@ -190,9 +186,6 @@ def main():
         X.append(image)
 
     shuffle(X)
-
-    print(len(X))
-    print(len(y))
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=0.66, random_state=1, shuffle=True)
 
@@ -215,11 +208,14 @@ def main():
     X_train /= 255
     X_test /= 255
 
+
+    y_trainBeforeProcessing = y_train
+    y_testBeforeProcessing = y_test
+    
     # preprocessing class labels for Keras
     y_train = np_utils.to_categorical(y_train, 2)
     y_test = np_utils.to_categorical(y_test, 2)
-    print(y_train.shape)
-
+    """
     model = Sequential()
 
     # 32 corresponds to the number of convolution filters to use
@@ -227,8 +223,6 @@ def main():
     # 3 corresponds to the number of columns in each convolution kernel
     model.add(Convolution2D(32, (3, 3), activation='relu', input_shape=(64,64,3)))
 
-    print (model.output_shape)
-    
     model.add(Convolution2D(32, (3, 3), activation='relu'))
     model.add(MaxPooling2D(pool_size=(2,2)))
     model.add(Dropout(0.25))  # this layer is important because it prevents overfitting
@@ -236,22 +230,66 @@ def main():
     model.add(Flatten())
     model.add(Dense(128, activation='relu'))
     model.add(Dropout(0.5))
-    model.add(Dense(2, activation='softmax')) #output layer with size of 2 (2 classes)
+    model.add(Dense(2, activation='sigmoid')) #output layer with size of 2 (2 classes)
 
     # compile model
-    model.compile(loss='categorical_crossentropy',
+    model.compile(loss='binary_crossentropy',
                   optimizer='adam',
                   metrics=['accuracy'])
     # fit model on training data
     model.fit(X_train, y_train,
-              batch_size=32, nb_epoch=2, verbose=1)
+              batch_size=32, nb_epoch=3, verbose=1)
 
     # evaluate model on test data
-    score = model.evaluate(X_test, y_test, verbose=0)
+    score = model.evaluate(X_test, y_test, verbose=1)
 
     print(score)
-
+    
     model.save('./outputs/datamodel.h5')
+    """
+    
+    model = load_model('./outputs/datamodel.h5')
+
+    score = model.evaluate(X_test, y_test, verbose=1)
+
+    y_pred = model.predict(X_test)
+
+    y_pred_format = []
+    for row in y_pred:
+        if row[0] == 1:
+            y_pred_format.append(-1)
+        if row[1] == 1:
+            y_pred_format.append(1)
+        else:
+            raise Exception("Invalid prediction label")
+    
+    y_t = model.predict(X_train)
+    # print(score)
+
+    y_t_format = []
+    for row in y_t:
+        if row[0] == 1:
+            y_t_format.append(-1)
+        if row[1] == 1:
+            y_t_format.append(1)
+        else:
+            raise Exception("Invalid prediction label")
+
+    print(y_testBeforeProcessing[:5])
+    print(y_pred)
+
+    cm = confusion_matrix(y_testBeforeProcessing, y_pred_format)
+    cm2 = confusion_matrix(y_trainBeforeProcessing, y_t_format)
+    
+    print(cm)
+    print(cm2)
+
+    accuracyTest = sklearn.metrics.accuracy_score(y_testBeforeProcessing, y_pred_format)
+    print("Accuracy:")
+    print(accuracyTest)
+
+    accuracyTrain = sklearn.metrics.accuracy_score(y_trainBeforeProcessing, y_t_format)
+    print(accuracyTrain)
 
 #<!--------------------------------------------------------------------------->
 #<!--                                                                       -->
