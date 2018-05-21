@@ -43,7 +43,7 @@ from keras.utils import np_utils
 from keras.datasets import mnist
 from keras.models import load_model
 
-
+from skimage import transform as tf
 
 ########################################################################
 
@@ -83,10 +83,22 @@ def sampleNegativeImages(images, negativeSample, size=(64, 64), N=200):
     # Final image resolution.
     w, h = size[0], size[1]
 
+    resizedImages = []
+    
+    for image in images:
+        res = cv2.resize(image, dsize=(1728, 1152), interpolation=cv2.INTER_CUBIC)
+        resizedImages.append(res)
+
+    for image in resizedImages:
+        images.append(image)
+
     # Read all images from the negative list.
 
+    i=0
     for image in images:
 
+        if i > 4:
+            N = 100
         for j in range(N):
             # random.random produced random number in [0,1) range
             y = int(random.random() * (len(image) - h))
@@ -94,6 +106,16 @@ def sampleNegativeImages(images, negativeSample, size=(64, 64), N=200):
             sample = image[y:y + h, x:x + w].copy()
             negativeSample.append(sample)
 
+            # Create Afine transform
+            afine_tf = tf.AffineTransform(shear = random.uniform(-0.2,0.2))
+            # Apply transform to image data
+            shearedImage = tf.warp(sample, inverse_map=afine_tf)
+            negativeSample.append(shearedImage)
+        i = i + 1
+
+    print("Non-car dataset:")
+    print(len(negativeSample))
+    
     return
 
 
@@ -110,12 +132,28 @@ def samplePositiveImages(images, positiveSample, size=(64, 64), N=200):
         
         h, w, channels = rotated.shape
         cropped_img = rotated[w//2 - 64//2:w//2 + 64//2, h//2 - 64//2:h//2 + 64//2]
-        
+
         positiveSample.append(image);
         positiveSample.append(cropped_img)
         positiveSample.append(np.fliplr(image))
         positiveSample.append(np.fliplr(cropped_img))
-    
+            
+    supportList = []
+    for img in positiveSample:
+        supportList.append(img)
+
+    for img in supportList:
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV) #convert it to hsv
+        hsv = hsv + 10
+        img = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+        positiveSample.append(img)
+            
+        hsv = hsv - 20
+        img = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+        positiveSample.append(img)
+
+    print("Car dataset:")
+    print(len(positiveSample))
 
     return
 
@@ -132,7 +170,6 @@ def getY(positiveImages, negativeImages):
     for x in range (0, sizeNegative):
         labels.append(-1)
 
-    shuffle(labels)
     return labels;
 
 #<!--------------------------------------------------------------------------->
@@ -175,8 +212,7 @@ def main():
     # Classification Model using Convolutionary neural network  #
     #                                                           #
     #-----------------------------------------------------------#
-
-    np.random.seed(123)
+    
     y = getY(positiveSample, negativeSample)
 
     for image in positiveSample:
@@ -184,8 +220,6 @@ def main():
 
     for image in negativeSample:
         X.append(image)
-
-    shuffle(X)
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=0.85, random_state=1, shuffle=True)
 
@@ -248,9 +282,9 @@ def main():
     model.add(Convolution2D(32, (3, 3), activation='relu', input_shape=(64,64,3)))
 
     model.add(Convolution2D(32, (3, 3), activation='relu'))
+    model.add(Dropout(0.25))  # this layer is important because it prevents overfitting
     model.add(MaxPooling2D(pool_size=(2,2)))
     model.add(Dropout(0.25))  # this layer is important because it prevents overfitting
-
     model.add(Flatten())
     model.add(Dense(128, activation='relu'))
     model.add(Dropout(0.5))
@@ -262,7 +296,7 @@ def main():
                   metrics=['accuracy'])
     # fit model on training data
     history = model.fit(X_train, y_train, validation_split=0.1765,
-              batch_size=32, nb_epoch=50, verbose=1)
+              batch_size=32, nb_epoch=5, verbose=1)
 
     # evaluate model on the train data
     print("Train Model Eval: {}".format(model.evaluate(X_train,  y_train, verbose=1)))
@@ -270,7 +304,7 @@ def main():
     # evaluate model on test data
     print("Test Model Eval: {}".format(model.evaluate(X_test, y_test, verbose=1)))
     
-    model.save('./outputs/datamodel50epochs.h5')
+    model.save('./outputs/datamodel5epochsNewDataset.h5')
 
     y_test_pred = model.predict(X_test)
 
@@ -326,6 +360,7 @@ def main():
     plt.xlabel('Epoch')
     plt.legend(['Train', 'Test'], loc='upper left')
     plt.show()
+
 
 #<!--------------------------------------------------------------------------->
 #<!--                                                                       -->
