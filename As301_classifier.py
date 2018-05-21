@@ -217,6 +217,8 @@ def main():
     computeHOG(negativeSample, hogList, size=(64,64))
     hogList = [vec.flatten() for vec in hogList]
 
+    print("Vector Length of one HOG: {}".format(len(hogList[0])))
+
     # create the labels (1: car, -1: non-car)
     [labels.append(+1) for _ in range(len(positiveSample))]
     [labels.append(-1) for _ in range(len(negativeSample))]
@@ -253,7 +255,9 @@ def main():
 
     print("sizes of train/validation/test sets: {0}/{1}/{2}".format(X_train.shape[0],X_val.shape[0],X_test.shape[0]))
 
-    svc = svm.SVC(kernel='linear', probability=True, class_weight='balanced')
+    kernel = "rbf" # "linear"
+
+    svc = svm.SVC(kernel=kernel, probability=True, class_weight='balanced')
     svc.fit(X_train,y_train)
     
     # store prediction results on the validation set
@@ -277,7 +281,7 @@ def main():
     print("1st Col/Row: Non-Cars | 2nd Col/Row: Cars")
     print(sklearn.metrics.confusion_matrix(y_test, test_pred))
 
-    joblib.dump(svc, './inputs/svm_model_weights.pkl') 
+    joblib.dump(svc, './inputs/svm_model_weights_' + kernel + '.pkl') 
 
 #<!--------------------------------------------------------------------------->
 #<!--                                                                       -->

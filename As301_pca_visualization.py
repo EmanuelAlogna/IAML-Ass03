@@ -10,8 +10,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from pathlib import Path
-from skimage.transform import pyramid_gaussian
-from sklearn.externals import joblib
 from sklearn.decomposition import PCA
 import sys
 
@@ -90,9 +88,9 @@ plt.scatter(special_cases[:,0], special_cases[:,1],
             color="red", alpha=.8, lw=lw, label='special cases of non-car')
 plt.legend(loc='best', shadow=False, scatterpoints=1)
 plt.title('Highlighting instances of Non-Cars\nthat are very similar to Cars', fontsize=8)
-plt.xlabel('1st principal component')
+plt.xlabel(r"$1^{st}$ principal component")
 plt.xlim((-4,4))
-plt.ylabel('2nd principal component')
+plt.ylabel(r"$2^{nd}$ principal component")
 plt.ylim((-4,4))
 
 plt.plot()
