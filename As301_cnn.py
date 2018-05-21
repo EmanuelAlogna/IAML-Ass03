@@ -44,6 +44,7 @@ from keras.datasets import mnist
 from keras.models import load_model
 
 from skimage import transform as tf
+from keras.utils import plot_model
 
 ########################################################################
 
@@ -269,11 +270,11 @@ def main():
     y_train = np.array(y_train_1hot)
     y_test  = np.array(y_test_1hot)
 
-    print("After Categorization")
-    print(sum([row[0] for row in y_train]))
-    print(sum([row[1] for row in y_train]))
+    #print("After Categorization")
+    #print(sum([row[0] for row in y_train]))
+    #print(sum([row[1] for row in y_train]))
     # sys.exit()
-    
+    """
     model = Sequential()
 
     # 32 corresponds to the number of convolution filters to use
@@ -305,7 +306,11 @@ def main():
     print("Test Model Eval: {}".format(model.evaluate(X_test, y_test, verbose=1)))
     
     model.save('./outputs/datamodel5epochsNewDataset.h5')
+    """
+    model = load_model('./outputs/datamodel5epochsNewDataset.h5')
 
+    print(model.summary())
+    
     y_test_pred = model.predict(X_test)
 
     y_test_pred_format = []
@@ -341,6 +346,7 @@ def main():
     print("Accuracy on the training set: {}".format(accuracyTrain))
 
 
+    """
     # list all data in history
     print(history.history.keys())
     # summarize history for accuracy
@@ -360,7 +366,7 @@ def main():
     plt.xlabel('Epoch')
     plt.legend(['Train', 'Test'], loc='upper left')
     plt.show()
-
+    """
 
 #<!--------------------------------------------------------------------------->
 #<!--                                                                       -->
