@@ -1,0 +1,14 @@
+2125/2125 [==============================] - 4s 2ms/step
+Train Model Eval: [0.45325778296414543, 0.8974117648741778]
+375/375 [==============================] - 1s 2ms/step
+Test Model Eval: [1.9718930616378785, 0.5493333347638448]
+Confusion on the test set.
+1st Col/Row: Non-Cars | 2nd Col/Row: Cars
+[[ 72  83]
+ [ 86 134]]
+Confusion on the training set.
+1st Col/Row: Non-Cars | 2nd Col/Row: Cars
+[[ 711  134]
+ [  84 1196]]
+Accuracy on the test set: 0.5493333333333333
+Accuracy on the training set: 0.8974117647058824

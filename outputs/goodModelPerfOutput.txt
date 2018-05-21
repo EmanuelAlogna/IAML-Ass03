@@ -1,0 +1,13 @@
+Train Model Eval: [9.988389605252771e-05, 1.0]
+375/375 [==============================] - 1s 3ms/step
+Test Model Eval: [0.09372725941352837, 0.9893333333333333]
+Confusion on the test set.
+1st Col/Row: Non-Cars | 2nd Col/Row: Cars
+[[146   4]
+ [  0 225]]
+Confusion on the training set.
+1st Col/Row: Non-Cars | 2nd Col/Row: Cars
+[[ 850    0]
+ [   0 1275]]
+Accuracy on the test set: 0.9893333333333333
+Accuracy on the training set: 1.0

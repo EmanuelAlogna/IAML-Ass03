@@ -28,12 +28,13 @@ from pathlib import Path
 from skimage.transform import pyramid_gaussian
 from sklearn.externals import joblib
 import sys
+import time
 
 import As301_classifier
 
 ########################################################################
 
-INPUT_FILEPATH = Path("./inputs/videos/Cars_02.mov")
+INPUT_FILEPATH = Path("./inputs/videos/Cars_05.mov")
 FILENAME = INPUT_FILEPATH.stem
 
 # Setup Video
@@ -145,6 +146,8 @@ def detectCars(frame, model = Classifier.SVM):
 
         elif model == Classifier.CNN:
 
+            # TODO: don't forget to scale the input into [0,1] range from [0,255]
+
             predictions = CLF_CNN.predict_classes(np.array(image_window))
 
         else:
@@ -154,38 +157,7 @@ def detectCars(frame, model = Classifier.SVM):
 
         for idx, pred in enumerate(predictions):
             if pred == 1:
-                detected_cars.append((x[idx],y[idx],SCALING_FACTOR))
-
-
-
-        # if prediction == [1]:
-        #     # As 3.02. (k) : resolve overlapping bounding boxes
-        #     # do not add rectangles that are enclosed by 
-        #     # a previously detected rectangle
-
-        #     BORDER_PIXELS = 30
-        #     isOverlapping = False
-
-        #     currRect = (        int(x*SCALING_FACTOR),
-        #                         int(y*SCALING_FACTOR),
-        #                         int((x + 64) * SCALING_FACTOR),
-        #                         int((y + 64) * SCALING_FACTOR) )
-
-        #     for (prev_x,prev_y,prev_scale) in detected_cars:
-
-        #         oldRect = (     int(prev_x * prev_scale),
-        #                         int(prev_y * prev_scale),
-        #                         int((prev_x + 64) * prev_scale),
-        #                         int((prev_y + 64) * prev_scale) )
-
-        #         if rectangleOverlap(rect1 = oldRect, rect2 = currRect, margin = BORDER_PIXELS):
-        #             isOverlapping = True
-        #             break
-
-        #     if not isOverlapping:
-        #         detected_cars.append((x,y,SCALING_FACTOR))
-
-            
+                detected_cars.append((x[idx],y[idx],SCALING_FACTOR))   
 
     res_image = frame.copy()
     for (x,y,scale) in detected_cars:
@@ -231,6 +203,7 @@ def rectangleOverlap(rect1 = (0,0,0,0), rect2 = (0,0,0,0), margin=0):
 
     return overlapCheck 
 
+# https://www.pyimagesearch.com/2014/11/17/non-maximum-suppression-object-detection-python/
 # (code from https://stackoverflow.com/questions/37847923/combine-overlapping-rectangles-python)
 def non_max_suppression_fast(boxes, overlapThresh):
    # if there are no boxes, return an empty list
@@ -292,10 +265,14 @@ if not RECORD_VIDEO:
     cv2.namedWindow("Video", cv2.WINDOW_AUTOSIZE)
 
 fgbg = cv2.createBackgroundSubtractorMOG2()
+
+# measure the frame by frame calculation performance
+frame_times = []
             
 while True:
     # Capture frame-by-frame.
     retval, frame = capture.read()
+    time_diff = time.time()
 
     # Check if there is a valid frame.
     if not retval:
@@ -341,7 +318,7 @@ while True:
 
     # print("Detections before overlap {0}".format(len(detectedRect)))
 
-    # convert from (x,y,w,h) to (x1,y1,x2,y2)
+    # convert from (x,y,w,h) to (x1,y1,x2,y2) for non-maximum suppression
     detectedRect = np.array([(x,y,x+w,y+h) for (x,y,w,h) in detectedRect])
 
     detectedRect = non_max_suppression_fast(detectedRect, 0.1)
@@ -368,11 +345,16 @@ while True:
 
     # print("Detections after overlap {0}".format(detect_count))
 
+    time_diff = time.time() - time_diff
+
+    frame_times.append(time_diff)
+
     # Display the resulting frame.
     if RECORD_VIDEO == True:
         record.write(frame)
         if frame_count % 30 == 0:
             print("Processed {0} frames \t({1} seconds of video)".format(frame_count, frame_count//30))
+            print("Average processing time for one frame {0}".format(str(np.mean(np.array(frame_times)))))
     else:
         cv2.imshow("Video", frame)
         if cv2.waitKey(fps) & 0xFF == ord("q"):
